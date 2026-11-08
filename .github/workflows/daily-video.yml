@@ -12,6 +12,8 @@ permissions:
 jobs:
   create-video:
     runs-on: ubuntu-latest
+        env:
+         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     timeout-minutes: 20
 
     steps:
