@@ -32,7 +32,7 @@ jobs:
 
       - name: Install Python packages
         run: |
-          pip install -r requirements.txt
+          pip install -r requirements.txt- name: Download English voice run: |python -m piper.download_voices en_US-lessac-medium
 
       - name: Start production
         run: |
