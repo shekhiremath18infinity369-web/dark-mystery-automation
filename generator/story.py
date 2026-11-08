@@ -3,30 +3,33 @@ import os
 import json
 import urllib.request
 
-API_KEY = os.environ.get("GEMINI_API_KEY")
-
-if not API_KEY:
-    raise RuntimeError("GEMINI_API_KEY is missing")
-
-MODEL = "gemini-3.8-flash"
+API_KEY = os.environ["GEMINI_API_KEY"]
+MODEL = "gemini-2.5-flash"
 
 prompt = """
-You are a professional dark mystery and horror storyteller.
+Create an original 45-second dark mystery horror story.
 
-Create one original horror story for YouTube Shorts
-and Instagram Reels.
-
-Requirements:
+Rules:
+- English narration.
 - 90 to 110 words.
-- Powerful hook in the first 3 seconds.
-- Dark, mysterious atmosphere.
+- Powerful first 3-second hook.
 - Psychological horror.
-- Unexpected ending.
-- Six clearly separated visual scenes.
-- Natural English narration.
-- Include a title.
+- Unexpected twist ending.
+- Six cinematic scene descriptions.
 
-Return only the finished story and scene descriptions.
+Return valid JSON with:
+{
+  "title": "Story title",
+  "narration": "Complete narration",
+  "scenes": [
+    "Scene 1 description",
+    "Scene 2 description",
+    "Scene 3 description",
+    "Scene 4 description",
+    "Scene 5 description",
+    "Scene 6 description"
+  ]
+}
 """
 
 url = (
@@ -39,27 +42,30 @@ payload = {
         "parts": [{"text": prompt}]
     }],
     "generationConfig": {
-        "temperature": 0.9,
-        "maxOutputTokens": 1200
+        "responseMimeType": "application/json",
+        "temperature": 0.9
     }
 }
 
 request = urllib.request.Request(
     url,
-    data=json.dumps(payload).encode("utf-8"),
-    headers={"Content-Type": "application/json"},
-    method="POST"
+    data=json.dumps(payload).encode(),
+    headers={"Content-Type": "application/json"}
 )
 
 with urllib.request.urlopen(request, timeout=60) as response:
-    result = json.loads(response.read().decode("utf-8"))
+    result = json.loads(response.read())
 
-story = result["candidates"][0]["content"]["parts"][0]["text"]
+story = json.loads(
+    result["candidates"][0]["content"]["parts"][0]["text"]
+)
 
 os.makedirs("output", exist_ok=True)
 
-with open("output/story.txt", "w", encoding="utf-8") as file:
-    file.write(story)
+with open("output/story.txt", "w", encoding="utf-8") as f:
+    f.write(story["narration"])
 
-print("Horror story generated successfully!")
-print(story)
+with open("output/story.json", "w", encoding="utf-8") as f:
+    json.dump(story, f, indent=2)
+
+print("Story generated:", story["title"])
