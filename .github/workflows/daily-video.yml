@@ -1,18 +1,49 @@
 
-name: Dark Mystery Video Automation
+name: Dark Mystery Studio
 
 on:
   workflow_dispatch:
   schedule:
     - cron: "30 12 * * *"
 
+permissions:
+  contents: read
+
 jobs:
-  setup:
+  create-video:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - name: Start automation
+      - name: Get project files
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg
         run: |
-          echo "Dark Mystery Studio started!"
-          echo "Preparing daily horror video production."
-          echo "Target: YouTube Shorts and Instagram Reels"
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python packages
+        run: |
+          pip install -r requirements.txt
+
+      - name: Start production
+        run: |
+          python generator/story.py
+          python generator/visuals.py
+          python generator/voice.py
+          python generator/editor.py
+
+      - name: Save generated video
+        uses: actions/upload-artifact@v4
+        with:
+          name: dark-mystery-video
+          path: output/horror_short.mp4
+          if-no-files-found: error
+          retention-days: 3
           
