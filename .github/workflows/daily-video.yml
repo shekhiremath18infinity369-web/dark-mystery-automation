@@ -12,16 +12,16 @@ permissions:
 jobs:
   create-video:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     env:
-      GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     steps:
-      - name: Get project files
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -31,31 +31,31 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Install Python packages
+      - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Download voice model
+      - name: Download Piper voice
         run: |
           python -m piper.download_voices en_US-lessac-medium
 
-      - name: Generate horror story
+      - name: Generate story
         run: python generator/story.py
-
-      - name: Generate visuals
-        run: python generator/visuals.py
 
       - name: Generate narration
         run: python generator/voice.py
 
-      - name: Render final video
+      - name: Generate visuals
+        run: python generator/visuals.py
+
+      - name: Render video
         run: python generator/editor.py
 
-      - name: Save generated video
+      - name: Upload final video
         uses: actions/upload-artifact@v4
         with:
           name: dark-mystery-video
           path: output/horror_short.mp4
           if-no-files-found: error
           retention-days: 3
-          
