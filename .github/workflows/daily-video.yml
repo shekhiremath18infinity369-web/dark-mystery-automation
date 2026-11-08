@@ -12,9 +12,10 @@ permissions:
 jobs:
   create-video:
     runs-on: ubuntu-latest
-        env:
-         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     timeout-minutes: 20
+
+    env:
+      GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
 
     steps:
       - name: Get project files
@@ -32,14 +33,23 @@ jobs:
 
       - name: Install Python packages
         run: |
-          pip install -r requirements.txt- name: Download English voice run: |python -m piper.download_voices en_US-lessac-medium
+          pip install -r requirements.txt
 
-      - name: Start production
+      - name: Download voice model
         run: |
-          python generator/story.py
-          python generator/visuals.py
-          python generator/voice.py
-          python generator/editor.py
+          python -m piper.download_voices en_US-lessac-medium
+
+      - name: Generate horror story
+        run: python generator/story.py
+
+      - name: Generate visuals
+        run: python generator/visuals.py
+
+      - name: Generate narration
+        run: python generator/voice.py
+
+      - name: Render final video
+        run: python generator/editor.py
 
       - name: Save generated video
         uses: actions/upload-artifact@v4
