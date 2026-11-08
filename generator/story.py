@@ -9,27 +9,14 @@ MODEL = "gemini-2.5-flash"
 prompt = """
 Create an original 45-second dark mystery horror story.
 
-Rules:
-- English narration.
-- 90 to 110 words.
-- Powerful first 3-second hook.
-- Psychological horror.
-- Unexpected twist ending.
-- Six cinematic scene descriptions.
+Return JSON with:
+title: short title
+narration: 90-110 words of English narration
+scenes: exactly 6 cinematic visual descriptions
 
-Return valid JSON with:
-{
-  "title": "Story title",
-  "narration": "Complete narration",
-  "scenes": [
-    "Scene 1 description",
-    "Scene 2 description",
-    "Scene 3 description",
-    "Scene 4 description",
-    "Scene 5 description",
-    "Scene 6 description"
-  ]
-}
+Start with a strong hook.
+Use psychological horror and an unexpected twist.
+Do not copy existing stories.
 """
 
 url = (
@@ -38,34 +25,35 @@ url = (
 )
 
 payload = {
-    "contents": [{
-        "parts": [{"text": prompt}]
-    }],
+    "contents": [{"parts": [{"text": prompt}]}],
     "generationConfig": {
         "responseMimeType": "application/json",
-        "temperature": 0.9
+        "temperature": 0.8
     }
 }
 
-request = urllib.request.Request(
+req = urllib.request.Request(
     url,
     data=json.dumps(payload).encode(),
     headers={"Content-Type": "application/json"}
 )
 
-with urllib.request.urlopen(request, timeout=60) as response:
+with urllib.request.urlopen(req, timeout=90) as response:
     result = json.loads(response.read())
 
 story = json.loads(
     result["candidates"][0]["content"]["parts"][0]["text"]
 )
 
-os.makedirs("output", exist_ok=True)
+assert len(story["scenes"]) == 6
+assert story["narration"].strip()
 
-with open("output/story.txt", "w", encoding="utf-8") as f:
-    f.write(story["narration"])
+os.makedirs("output", exist_ok=True)
 
 with open("output/story.json", "w", encoding="utf-8") as f:
     json.dump(story, f, indent=2)
+
+with open("output/story.txt", "w", encoding="utf-8") as f:
+    f.write(story["narration"])
 
 print("Story generated:", story["title"])
