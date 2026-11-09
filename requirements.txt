@@ -1,2 +1,2 @@
-Pillow
-piper-tts
+Pillow>=10.0,<13
+piper-tts>=1.4.0,<2
