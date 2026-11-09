@@ -1,69 +1,127 @@
-
-import os
 import json
+import math
+import random
 import subprocess
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
 
-os.makedirs("output/scenes", exist_ok=True)
-
-with open("output/story.json", encoding="utf-8") as f:
-    story = json.load(f)
+WIDTH, HEIGHT = 1080, 1920
+OUTPUT = Path("output")
+SCENES_DIR = OUTPUT / "scenes"
 
 def make_scene(index, description):
-    w, h = 1080, 1920
-    image = Image.new("RGB", (w, h))
-    pixels = image.load()
-
-    for y in range(h):
-        for x in range(w):
-            distance = ((x-w/2)**2 + (y-h/2)**2)**0.5
-            shade = max(2, int(24-distance/80))
-            pixels[x, y] = (shade, shade+2, shade+5)
-
+    rng = random.Random(index * 197)
+    image = Image.new("RGB", (WIDTH, HEIGHT))
     draw = ImageDraw.Draw(image)
 
-    # Mysterious doorway and silhouette
-    draw.rectangle((280, 550, 800, 1600), fill=(7, 9, 12))
-    draw.rectangle((410, 700, 670, 1600), fill=(1, 2, 4))
+    # Smooth dark blue-grey vertical gradient.
+    for y in range(HEIGHT):
+        t = y / HEIGHT
+        value = int(5 + 17 * (1 - t))
+        draw.line((0, y, WIDTH, y), fill=(value, value + 2, value + 7))
 
-    # Scene-specific visual variation
-    if index % 2 == 0:
-        draw.ellipse((440, 750, 640, 950), fill=(13, 17, 21))
+    # Distant moon / dim light source.
+    moon_x = 780 if index % 2 else 270
+    moon_y = 340 + (index % 3) * 65
+    draw.ellipse(
+        (moon_x - 105, moon_y - 105, moon_x + 105, moon_y + 105),
+        fill=(38, 43, 50)
+    )
+
+    # Fog banks.
+    fog = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    fog_draw = ImageDraw.Draw(fog)
+    for _ in range(34):
+        x = rng.randint(-180, WIDTH - 80)
+        y = rng.randint(650, 1650)
+        rx = rng.randint(100, 300)
+        ry = rng.randint(18, 70)
+        fog_draw.ellipse(
+            (x, y, x + rx, y + ry),
+            fill=(125, 135, 148, rng.randint(5, 16))
+        )
+    fog = fog.filter(ImageFilter.GaussianBlur(38))
+    image = Image.alpha_composite(image.convert("RGBA"), fog)
+    draw = ImageDraw.Draw(image)
+
+    # Different silhouettes so each scene is not an identical frame.
+    if index in (1, 4):
+        # Narrow corridor and open doorway.
+        draw.rectangle((180, 520, 900, 1700), fill=(7, 9, 13, 255))
+        draw.polygon([(180, 520), (420, 700), (420, 1700), (180, 1700)],
+                     fill=(17, 19, 24, 255))
+        draw.polygon([(900, 520), (660, 700), (660, 1700), (900, 1700)],
+                     fill=(12, 14, 19, 255))
+        draw.rectangle((425, 710, 655, 1700), fill=(1, 2, 4, 255))
+    elif index in (2, 5):
+        # Lonely house with lit window.
+        draw.polygon([(190, 1050), (540, 720), (900, 1050)], fill=(5, 7, 10, 255))
+        draw.rectangle((260, 1040, 820, 1690), fill=(5, 7, 10, 255))
+        draw.rectangle((430, 1190, 650, 1690), fill=(1, 2, 4, 255))
+        draw.rectangle((680, 1150, 760, 1280), fill=(43, 40, 31, 255))
     else:
-        draw.rectangle((100, 1200, 980, 1250), fill=(9, 12, 16))
+        # Trees and a small distant figure in a forest.
+        for x in range(-50, WIDTH + 100, 145):
+            top = rng.randint(440, 850)
+            draw.polygon(
+                [(x, 1700), (x + 65, top), (x + 135, 1700)],
+                fill=(3, 5, 8, 255)
+            )
+        figure_x = 535 + rng.randint(-90, 90)
+        draw.ellipse((figure_x - 34, 1110, figure_x + 34, 1178),
+                     fill=(1, 2, 3, 255))
+        draw.polygon(
+            [(figure_x - 55, 1170), (figure_x + 55, 1170),
+             (figure_x + 90, 1600), (figure_x - 90, 1600)],
+            fill=(1, 2, 3, 255)
+        )
 
-    image = image.filter(ImageFilter.GaussianBlur(2))
-    image.save(f"output/scenes/scene_{index}.png")
+    image = image.convert("RGB").filter(ImageFilter.GaussianBlur(1.3))
+    target = SCENES_DIR / f"scene_{index}.png"
+    image.save(target, quality=92)
+    return target
 
-for i, description in enumerate(story["scenes"], 1):
-    make_scene(i, description)
+def main():
+    story_file = OUTPUT / "story.json"
+    if not story_file.exists():
+        raise FileNotFoundError("Missing output/story.json; run story.py first.")
+
+    story = json.loads(story_file.read_text(encoding="utf-8"))
+    scenes = story.get("scenes", [])
+    if len(scenes) != 6:
+        raise ValueError("Expected exactly six scene descriptions.")
+
+    SCENES_DIR.mkdir(parents=True, exist_ok=True)
+    concat_file = OUTPUT / "concat.txt"
+    clip_paths = []
+
+    for index, description in enumerate(scenes, start=1):
+        image_path = make_scene(index, description)
+        clip_path = SCENES_DIR / f"clip_{index}.mp4"
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-loop", "1", "-framerate", "24", "-i", str(image_path),
+            "-t", "7.5", "-r", "24",
+            "-vf", "scale=1080:1920,format=yuv420p",
+            "-an", "-c:v", "libx264", "-preset", "ultrafast",
+            "-crf", "28", str(clip_path)
+        ], check=True)
+        clip_paths.append(clip_path.resolve())
+
+    concat_file.write_text(
+        "".join(f"file '{path.as_posix()}'\n" for path in clip_paths),
+        encoding="utf-8"
+    )
 
     subprocess.run([
-        "ffmpeg", "-y",
-        "-loop", "1",
-        "-i", f"output/scenes/scene_{i}.png",
-        "-t", "7.5",
-        "-r", "24",
-        "-vf", "format=yuv420p",
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        f"output/scenes/clip_{i}.mp4"
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        "-an", "-c:v", "libx264", "-preset", "ultrafast",
+        "-crf", "27", "-pix_fmt", "yuv420p",
+        str(OUTPUT / "visual.mp4")
     ], check=True)
 
-with open("output/concat.txt", "w") as f:
-    for i in range(1, 7):
-        path = os.path.abspath(
-            f"output/scenes/clip_{i}.mp4"
-        )
-        f.write(f"file '{path}'\n")
+    print("Six-scene vertical visual video created.")
 
-subprocess.run([
-    "ffmpeg", "-y",
-    "-f", "concat",
-    "-safe", "0",
-    "-i", "output/concat.txt",
-    "-c", "copy",
-    "output/visual.mp4"
-], check=True)
-
-print("Six visual scenes completed!")
+if __name__ == "__main__":
+    main()
