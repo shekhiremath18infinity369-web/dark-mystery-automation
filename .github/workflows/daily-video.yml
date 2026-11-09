@@ -12,10 +12,59 @@ permissions:
   contents: read
 
 jobs:
-  workflow-check:
+  create-video:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
     steps:
-      - name: Verify workflow loads
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install FFmpeg
         run: |
-          echo "Dark Mystery Studio workflow loaded."
-          echo "Scheduled for 6:00 PM India time."
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Check Python syntax
+        run: python -m compileall -q generator
+
+      - name: Download Piper voice model
+        run: |
+          mkdir -p models
+          python -m piper.download_voices --download-dir models en_US-lessac-medium
+          test -s models/en_US-lessac-medium.onnx
+          test -s models/en_US-lessac-medium.onnx.json
+
+      - name: Generate horror story
+        run: python generator/story.py
+
+      - name: Generate narration
+        run: python generator/voice.py
+
+      - name: Generate six visual scenes
+        run: python generator/visuals.py
+
+      - name: Render final vertical video
+        run: python generator/editor.py
+
+      - name: Upload generated video
+        uses: actions/upload-artifact@v4
+        with:
+          name: dark-mystery-video
+          path: output/horror_short.mp4
+          if-no-files-found: error
+          retention-days: 7
