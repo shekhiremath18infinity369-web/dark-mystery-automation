@@ -1,0 +1,17 @@
+# Local secrets and generated outputs
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+renders/
+output/
+outputs/
+tmp/
+.cache/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
